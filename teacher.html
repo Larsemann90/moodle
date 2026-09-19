@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lehrer-Dashboard</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="tafel">
+  <h1>Lehrer-Dashboard</h1>
+  <div class="unter" id="unterzeile">Klassen, Aufgaben und Einreichungen verwalten</div>
+</header>
+<main>
+
+  <section id="login-bereich" class="karte">
+    <h2>Anmelden</h2>
+    <p class="hinweis">Beim ersten Mal legst du dein Konto direkt hier an.</p>
+    <label for="email">E-Mail</label>
+    <input type="text" id="email" autocomplete="username">
+    <label for="passwort">Passwort</label>
+    <input type="password" id="passwort" autocomplete="current-password">
+    <div class="reihe">
+      <button id="login-knopf">Anmelden</button>
+      <button class="sekundaer" id="registrieren-knopf">Konto erstellen</button>
+    </div>
+    <div class="fehlermeldung" id="login-fehler"></div>
+  </section>
+
+  <section id="dashboard" style="display:none;">
+    <div class="reihe" style="justify-content:space-between;">
+      <span></span>
+      <button class="sekundaer" id="abmelden-knopf">Abmelden</button>
+    </div>
+
+    <div class="karte">
+      <h2>Klassen</h2>
+      <div id="klassen-liste"></div>
+      <div class="reihe">
+        <input type="text" id="neue-klasse" placeholder="Neue Klasse, z. B. 9a">
+        <button id="klasse-anlegen-knopf">Klasse anlegen</button>
+      </div>
+    </div>
+
+    <div class="karte" id="klassen-detail" style="display:none;">
+      <h2 id="klassen-detail-titel"></h2>
+
+      <h3>Schüler</h3>
+      <table id="schueler-tabelle"><tbody></tbody></table>
+      <div class="reihe">
+        <input type="text" id="neuer-schueler-name" placeholder="Vorname">
+        <input type="text" id="neues-schueler-passwort" placeholder="Passwort">
+        <button id="schueler-anlegen-knopf">Schüler anlegen</button>
+      </div>
+
+      <h3>Kaskaden</h3>
+      <div id="kaskaden-liste"></div>
+      <div class="reihe">
+        <input type="text" id="neue-kaskade-titel" placeholder="Titel der Kaskade">
+        <select id="neue-kaskade-modus">
+          <option value="manual">Lösung nach Freigabe</option>
+          <option value="auto">Lösung automatisch</option>
+        </select>
+        <button id="kaskade-anlegen-knopf">Kaskade anlegen</button>
+      </div>
+    </div>
+
+    <div class="karte" id="kaskade-detail" style="display:none;">
+      <h2 id="kaskade-detail-titel"></h2>
+
+      <h3>Aufgaben-Stufen</h3>
+      <div id="aufgaben-liste"></div>
+      <form id="aufgabe-anlegen-form">
+        <label>Titel der Stufe</label>
+        <input type="text" id="neue-aufgabe-titel" required>
+        <label>Aufgabentext (optional)</label>
+        <textarea id="neue-aufgabe-text"></textarea>
+        <label>Aufgabendatei (optional)</label>
+        <input type="file" id="neue-aufgabe-datei">
+        <label>Lösungstext (optional)</label>
+        <textarea id="neue-loesung-text"></textarea>
+        <label>Lösungsdatei (optional)</label>
+        <input type="file" id="neue-loesung-datei">
+        <button type="submit">Stufe hinzufügen</button>
+      </form>
+
+      <h3>Einreichungen</h3>
+      <div id="einreichungen-liste"></div>
+    </div>
+
+  </section>
+</main>
+<footer class="hinweisleiste">Dein Login läuft über Supabase Auth; nur du siehst deine Klassen.</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/teacher.js"></script>
+</body>
+</html>
