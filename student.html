@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meine Aufgaben</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="tafel">
+  <h1 id="titel">Meine Aufgaben</h1>
+  <div class="unter" id="unterzeile">Melde dich mit deinem Vornamen und Passwort an</div>
+</header>
+<main>
+
+  <section id="login-bereich" class="karte">
+    <h2>Anmelden</h2>
+    <label for="klassen-auswahl">Klasse</label>
+    <select id="klassen-auswahl"></select>
+
+    <label for="vorname">Vorname</label>
+    <input type="text" id="vorname" autocomplete="given-name">
+
+    <label for="passwort">Passwort</label>
+    <input type="password" id="passwort" autocomplete="current-password">
+
+    <button id="login-knopf">Anmelden</button>
+    <div class="fehlermeldung" id="login-fehler"></div>
+  </section>
+
+  <section id="aufgaben-bereich" style="display:none;">
+    <div class="reihe" style="justify-content:space-between;">
+      <span></span>
+      <button class="sekundaer" id="abmelden-knopf">Abmelden</button>
+    </div>
+    <div id="aufgaben-liste"></div>
+  </section>
+
+</main>
+<footer class="hinweisleiste">Deine Anmeldedaten hat dir deine Lehrkraft gegeben.</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/student.js"></script>
+</body>
+</html>
