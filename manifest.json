@@ -1,9 +1,0 @@
-{
-  "name": "Kaskaden-Aufgaben",
-  "short_name": "Kaskaden",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#fbf8f1",
-  "theme_color": "#1f3a30",
-  "icons": []
-}
