@@ -2,9 +2,33 @@ const loginBereich = document.getElementById('login-bereich');
 const aufgabenBereich = document.getElementById('aufgaben-bereich');
 const klassenAuswahl = document.getElementById('klassen-auswahl');
 const loginFehler = document.getElementById('login-fehler');
+const loginKnopf = document.getElementById('login-knopf');
 
-const SESSION_KEY = 'kaskaden_student_session';
 const NAME_KEY = 'kaskaden_student_name';
+let meineSchuelerId = null;
+
+function setzeLadezustand(button, ladeText) {
+  button.dataset.originalText = button.dataset.originalText || button.textContent;
+  button.textContent = ladeText;
+  button.disabled = true;
+}
+function loeseLadezustand(button) {
+  button.textContent = button.dataset.originalText || button.textContent;
+  button.disabled = false;
+}
+
+// Stellt sicher, dass eine (anonyme) Supabase-Sitzung existiert, bevor
+// irgendetwas anderes passiert – notwendig, damit die Datenbank später
+// Dateien eindeutig diesem Gerät/Schüler zuordnen kann.
+async function stelleSitzungSicher() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) {
+    const { error } = await supabaseClient.auth.signInAnonymously();
+    if (error) {
+      loginFehler.textContent = 'Verbindung fehlgeschlagen: ' + error.message;
+    }
+  }
+}
 
 async function ladeKlassen() {
   const { data, error } = await supabaseClient.rpc('list_classes');
@@ -23,34 +47,44 @@ async function login() {
     return;
   }
 
+  setzeLadezustand(loginKnopf, 'Melde an …');
+  await stelleSitzungSicher();
+
   const { data, error } = await supabaseClient.rpc('login_student', {
     p_class_id: classId, p_first_name: vorname, p_password: passwort
   });
 
+  loeseLadezustand(loginKnopf);
+
   if (error) {
-    loginFehler.textContent = 'Anmeldung fehlgeschlagen. Bitte Angaben prüfen.';
+    loginFehler.textContent = 'Anmeldung fehlgeschlagen. Bitte Vorname/Passwort/Klasse prüfen.';
     return;
   }
 
-  sessionStorage.setItem(SESSION_KEY, data);
-  sessionStorage.setItem(NAME_KEY, vorname);
+  meineSchuelerId = data;
+  localStorage.setItem(NAME_KEY, vorname);
   zeigeAufgaben();
 }
 
 async function zeigeAufgaben() {
-  const token = sessionStorage.getItem(SESSION_KEY);
-  if (!token) return;
-
   loginBereich.style.display = 'none';
   aufgabenBereich.style.display = 'block';
-  document.getElementById('unterzeile').textContent = 'Hallo ' + sessionStorage.getItem(NAME_KEY) + '!';
+  document.getElementById('unterzeile').textContent = 'Hallo ' + (localStorage.getItem(NAME_KEY) || '') + '!';
 
-  const { data, error } = await supabaseClient.rpc('get_my_tasks', { p_token: token });
   const liste = document.getElementById('aufgaben-liste');
+  liste.innerHTML = '<p class="hinweis">Lädt …</p>';
 
-  if (error) {
-    liste.innerHTML = `<div class="karte fehlermeldung">Sitzung abgelaufen. Bitte neu anmelden.</div>`;
-    sessionStorage.removeItem(SESSION_KEY);
+  if (!meineSchuelerId) {
+    const { data } = await supabaseClient.rpc('whoami');
+    meineSchuelerId = data;
+  }
+
+  const { data, error } = await supabaseClient.rpc('get_my_tasks');
+
+  if (error || !meineSchuelerId) {
+    liste.innerHTML = `<div class="karte fehlermeldung">Sitzung abgelaufen oder nicht angemeldet. Bitte neu anmelden.</div>`;
+    aufgabenBereich.style.display = 'none';
+    loginBereich.style.display = 'block';
     return;
   }
 
@@ -59,27 +93,28 @@ async function zeigeAufgaben() {
     return;
   }
 
-  liste.innerHTML = data.map(t => aufgabenKarte(t)).join('');
+  liste.innerHTML = data.map(t => aufgabenKarteGeruest(t)).join('');
 
-  data.forEach(t => {
+  for (const t of data) {
+    await befuelleAufgabenKarte(t);
     const form = document.getElementById('upload-form-' + t.task_id);
     if (form) form.addEventListener('submit', (e) => hochladen(e, t.task_id));
-  });
+  }
 }
 
-function aufgabenKarte(t) {
+function aufgabenKarteGeruest(t) {
   const status = t.submission_status || 'offen';
   const statusText = { offen: 'noch nicht bearbeitet', eingereicht: 'eingereicht – warte auf Freigabe', freigegeben: 'freigegeben' }[status];
 
   let inhalt = `
-    <div class="karte">
+    <div class="karte" id="karte-${t.task_id}">
       <div class="reihe" style="justify-content:space-between;">
         <h3><span class="stufe-marke">${t.reihenfolge}</span>${escapeHtml(t.title)}</h3>
         <span class="status ${status}">${statusText}</span>
       </div>`;
 
   if (t.task_text) inhalt += `<p>${escapeHtml(t.task_text)}</p>`;
-  if (t.task_file_url) inhalt += `<p><a class="knopf sekundaer" href="${t.task_file_url}" target="_blank">Aufgabe herunterladen</a></p>`;
+  inhalt += `<div id="aufgabe-link-${t.task_id}"></div>`;
 
   if (status !== 'freigegeben') {
     inhalt += `
@@ -88,54 +123,85 @@ function aufgabenKarte(t) {
         <input type="file" name="datei" required>
         <button type="submit">Einreichen</button>
       </form>`;
-  }
-
-  if (status === 'freigegeben') {
+  } else {
     if (t.solution_text) inhalt += `<p><strong>Lösung:</strong> ${escapeHtml(t.solution_text)}</p>`;
-    if (t.solution_file_url) inhalt += `<p><a class="knopf akzent" href="${t.solution_file_url}" target="_blank">Lösung herunterladen</a></p>`;
+    inhalt += `<div id="loesung-link-${t.task_id}"></div>`;
     inhalt += `<div id="feedback-${t.task_id}" class="hinweis">Feedback wird geladen …</div>`;
-    ladeFeedback(t.task_id);
   }
 
   inhalt += `</div>`;
   return inhalt;
 }
 
+// Erzeugt zeitlich befristete, signierte Links für Aufgaben-/Lösungsdatei
+// und lädt ggf. das Feedback nach.
+async function befuelleAufgabenKarte(t) {
+  if (t.task_file_url) {
+    const url = await signierterLink('aufgaben', t.task_file_url);
+    const ziel = document.getElementById('aufgabe-link-' + t.task_id);
+    if (ziel && url) ziel.innerHTML = `<p><a class="knopf sekundaer" href="${url}" target="_blank">Aufgabe herunterladen</a></p>`;
+  }
+  if (t.submission_status === 'freigegeben') {
+    if (t.solution_file_url) {
+      const url = await signierterLink('aufgaben', t.solution_file_url);
+      const ziel = document.getElementById('loesung-link-' + t.task_id);
+      if (ziel && url) ziel.innerHTML = `<p><a class="knopf akzent" href="${url}" target="_blank">Lösung herunterladen</a></p>`;
+    }
+    ladeFeedback(t.task_id);
+  }
+}
+
+async function signierterLink(bucket, pfad) {
+  const { data, error } = await supabaseClient.storage.from(bucket).createSignedUrl(pfad, 600);
+  if (error) { console.error(error); return null; }
+  return data.signedUrl;
+}
+
 async function ladeFeedback(taskId) {
-  const token = sessionStorage.getItem(SESSION_KEY);
-  const { data } = await supabaseClient.rpc('get_my_feedback', { p_token: token, p_task_id: taskId });
+  const { data } = await supabaseClient.rpc('get_my_feedback', { p_task_id: taskId });
   const ziel = document.getElementById('feedback-' + taskId);
   if (!ziel) return;
   if (!data || !data.length) { ziel.textContent = 'Noch kein Feedback vorhanden.'; return; }
 
-  ziel.innerHTML = data.map(f => `
-    <div class="aufgabe-block">
-      ${f.text_feedback ? `<p>${escapeHtml(f.text_feedback)}</p>` : ''}
-      ${f.audio_url ? `<audio controls src="${f.audio_url}"></audio>` : ''}
-      ${f.file_url ? `<p><a class="knopf sekundaer" href="${f.file_url}" target="_blank">Feedback-Datei öffnen</a></p>` : ''}
-    </div>
-  `).join('');
+  let html = '';
+  for (const f of data) {
+    const audioUrl = f.audio_url ? await signierterLink('feedback', f.audio_url) : null;
+    const fileUrl = f.file_url ? await signierterLink('feedback', f.file_url) : null;
+    html += `
+      <div class="aufgabe-block">
+        ${f.text_feedback ? `<p>${escapeHtml(f.text_feedback)}</p>` : ''}
+        ${audioUrl ? `<audio controls src="${audioUrl}"></audio>` : ''}
+        ${fileUrl ? `<p><a class="knopf sekundaer" href="${fileUrl}" target="_blank">Feedback-Datei öffnen</a></p>` : ''}
+      </div>`;
+  }
+  ziel.innerHTML = html;
 }
 
 async function hochladen(event, taskId) {
   event.preventDefault();
   const input = event.target.querySelector('input[type=file]');
   const datei = input.files[0];
-  if (!datei) return;
+  if (!datei || !meineSchuelerId) return;
 
-  const token = sessionStorage.getItem(SESSION_KEY);
-  const pfad = `abgaben-${taskId}/${crypto.randomUUID()}-${datei.name}`;
+  const knopf = event.target.querySelector('button[type=submit]');
+  setzeLadezustand(knopf, 'Lädt hoch …');
+
+  const pfad = `${meineSchuelerId}/${taskId}/${crypto.randomUUID()}-${datei.name}`;
 
   const { error: uploadFehler } = await supabaseClient.storage.from('abgaben').upload(pfad, datei);
-  if (uploadFehler) { alert('Upload fehlgeschlagen: ' + uploadFehler.message); return; }
+  if (uploadFehler) {
+    loeseLadezustand(knopf);
+    alert('Upload fehlgeschlagen: ' + uploadFehler.message);
+    return;
+  }
 
-  const { data: pub } = supabaseClient.storage.from('abgaben').getPublicUrl(pfad);
+  const { error } = await supabaseClient.rpc('submit_task', { p_task_id: taskId, p_file_path: pfad });
 
-  const { error } = await supabaseClient.rpc('submit_task', {
-    p_token: token, p_task_id: taskId, p_file_url: pub.publicUrl
-  });
-
-  if (error) { alert('Einreichen fehlgeschlagen: ' + error.message); return; }
+  if (error) {
+    loeseLadezustand(knopf);
+    alert('Einreichen fehlgeschlagen: ' + error.message);
+    return;
+  }
   zeigeAufgaben();
 }
 
@@ -146,12 +212,20 @@ function escapeHtml(text) {
 }
 
 document.getElementById('login-knopf').addEventListener('click', login);
-document.getElementById('abmelden-knopf').addEventListener('click', () => {
-  sessionStorage.removeItem(SESSION_KEY);
-  sessionStorage.removeItem(NAME_KEY);
+document.getElementById('abmelden-knopf').addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+  localStorage.removeItem(NAME_KEY);
+  meineSchuelerId = null;
   aufgabenBereich.style.display = 'none';
   loginBereich.style.display = 'block';
 });
 
-ladeKlassen();
-if (sessionStorage.getItem(SESSION_KEY)) zeigeAufgaben();
+(async function start() {
+  await stelleSitzungSicher();
+  await ladeKlassen();
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) {
+    const { data } = await supabaseClient.rpc('whoami');
+    if (data) { meineSchuelerId = data; zeigeAufgaben(); }
+  }
+})();
