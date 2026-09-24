@@ -76,6 +76,36 @@ Policies auf diese Buckets beziehen.
 8. Nach Freigabe sieht der Schüler automatisch Lösung + dein Feedback beim
    nächsten Öffnen der Seite.
 
+## Update 1: echte Zugriffsbeschränkung, Umbenennen, Passwort-Reset
+
+Falls du die App schon eingerichtet hattest, zusätzlich:
+
+1. **Anonyme Anmeldungen aktivieren:** Im Supabase-Dashboard unter
+   **Authentication → Sign In / Providers** den Schalter **"Allow
+   anonymous sign-ins"** aktivieren. Ohne das funktioniert der
+   Schüler-Login danach nicht mehr.
+2. Im SQL Editor nacheinander ausführen: `update-1.sql`, danach
+   `update-1-storage-policies.sql`.
+3. **Redirect-URL für Passwort-Reset erlauben:** Unter
+   **Authentication → URL Configuration** bei "Redirect URLs" deine
+   GitHub-Pages-Adresse eintragen, z. B.
+   `https://dein-github-name.github.io/repo-name/teacher.html`.
+4. Alle Dateien (inkl. `js/student.js`, `js/teacher.js`,
+   `teacher.html`) erneut hochladen.
+
+**Was sich geändert hat:**
+- Schüler-Dateien (Abgaben, Feedback) sind jetzt wirklich nur für den
+  jeweiligen Schüler und dich abrufbar – nicht mehr nur über einen
+  schwer erratbaren Link, sondern über eine echte Zugriffsprüfung in
+  der Datenbank. Downloadlinks laufen zusätzlich nach 10 Minuten ab.
+- Klassen lassen sich über das Stift-Symbol ✏️ neben dem Klassennamen
+  umbenennen.
+- Auf der Lehrer-Login-Seite gibt es jetzt "Passwort vergessen?" –
+  verschickt einen Reset-Link per E-Mail.
+- Ein Schüler ist jetzt jeweils nur auf einem Gerät gleichzeitig aktiv
+  eingeloggt: meldet er sich auf einem neuen Gerät an, wird die
+  vorherige Sitzung ungültig (guter Nebeneffekt an Schul-Rechnern).
+
 ## Datenschutz-Hinweise
 
 - Passwörter der Schüler werden serverseitig gehasht gespeichert (nie im
